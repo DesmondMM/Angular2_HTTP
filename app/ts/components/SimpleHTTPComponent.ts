@@ -1,7 +1,6 @@
 import {Component} from 'angular2/core';
 import {Http, Response} from 'angular2/http';
 
-
 @Component({
   selector: 'simple-http',
   template:`
@@ -12,5 +11,19 @@ import {Http, Response} from 'angular2/http';
   `
 })
 export class SimpleHTTPComponent {
+  data: Object;
+  loading: boolean;
 
+  constructor(public http: Http) {
+    this.http = http;
+  }
+
+  makeRequest(): void {
+    this.loading = true;
+    this.http.request('http://jsonplaceholder.typicode.com/posts/1')
+        .subscribe((res: Response) => {
+          this.data = res.json();
+          this.loading = false;
+        });
+  }
 }
