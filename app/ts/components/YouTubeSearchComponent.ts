@@ -41,12 +41,82 @@ class SearchResult {
   }
 }
 
+@Injectable()
+export class YouTubeService {
+  constructor(public http: Http,
+              @Inject(YOUTUBE_API_KEY) private apiKey: string,
+              @Inject(YOUTUBE_API_URL) private apiUrl: string) {
+  }
+
+  search(query: string): Observable<SearchResult[]> {
+    let params: string = [
+      `q=${query}`,
+      `key=${this.apiKey}`,
+      `part=snippet`,
+      `type=video`,
+      `maxResults=10`
+    ].join('&');
+    let queryUrl: string = `${this.apiUrl}?${params}`;
+    return this.http.get(queryUrl)
+      .map((response: Response) => {
+        return (<any>response.json()).items.map(item => {
+          // console.log("raw item", item); // uncomment if you want to debug
+          return new SearchResult({
+            id: item.id.videoId,
+            title: item.snippet.title,
+            description: item.snippet.description,
+            thumbnailUrl: item.snippet.thumbnails.high.url
+          });
+        });
+      });
+  }
+}
+
+export var youTubeServiceInjectables: Array<any> = [
+  bind(YouTubeService).toClass(YouTubeService),
+  bind(YOUTUBE_API_KEY).toValue(YOUTUBE_API_KEY),
+  bind(YOUTUBE_API_URL).toValue(YOUTUBE_API_URL)
+];
+
 @Component({
-  selector: 'youtube-search',
+  outputs: ['loading', 'results'],
+  selector: 'search-box',
   template: `
-  <div>Content coming Soon</div>
+    <input type="text" class="form-control" placeholder="Search" autofocus>
   `
 })
-export class YouTubeSearchComponent {
+class SearchBox implements OnInit {
+  loading: EventEmitter<boolean> = new EventEmitter<boolean>();
+  results: EventEmitter<SearchResult[]> = new EventEmitter<SearchResult[]>();
 
+  constructor(public youtube: YouTubeService,
+              private el: ElementRef) {
+  }
+
+  ngOnInit(): void {
+    // convert the `keyup` event into an observable stream
+    Observable.fromEvent(this.el.nativeElement, 'keyup')
+      .map((e: any) => e.target.value) // extract the value of the input
+      .filter((text: string) => text.length > 1) // filter out if empty
+      .debounceTime(250)                         // only once every 250ms
+      .do(() => this.loading.next(true))         // enable loading
+      // search, discarding old events if new input comes in
+      .map((query: string) => this.youtube.search(query))
+      .switch()
+      // act on the return of the search
+      .subscribe(
+        (results: SearchResult[]) => { // on sucesss
+          this.loading.next(false);
+          this.results.next(results);
+        },
+        (err: any) => { // on error
+          console.log(err);
+          this.loading.next(false);
+        },
+        () => { // on completion
+          this.loading.next(false);
+        }
+      );
+
+  }
 }
